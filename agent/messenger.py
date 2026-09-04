@@ -21,7 +21,10 @@ import requests
 from agent import schema
 
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
-GROQ_MODEL = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
+# Default to a model available on Groq's free tier. The Llama models are
+# listed under an enterprise tier and return 404 on a free key. Override with
+# GROQ_MODEL in .env; `GET /openai/v1/models` lists what a given key can use.
+GROQ_MODEL = os.environ.get("GROQ_MODEL", "openai/gpt-oss-120b")
 
 MAX_MESSAGE_CHARS = 320
 
@@ -163,8 +166,19 @@ def _prompt(row: dict, action: str, link_url: str | None) -> list:
         history = (f"\n\nYou have already sent this customer:\n{joined}\n"
                    "Write something different. Do not repeat those sentences.")
 
+    language_rule = (
+        "0. Write in Hinglish, not plain English. Hinglish means English sentence structure "
+        "with common Hindi words mixed in, written in the Latin alphabet, the way Indian "
+        "payment apps actually message people. For example: 'Aapka ₹499 ka payment abhi "
+        "pending hai. Jab convenient ho, complete kar dijiye.' Do not write a fully English "
+        "message.\n"
+        if audience_rules.startswith("Write in Hinglish") else
+        "0. Write in plain English.\n"
+    )
+
     system = (
         "You write short payment messages for an Indian payments company. Rules you must follow:\n"
+        + language_rule +
         f"1. The only money figure you may write is {amount}. Never any other number with a rupee sign.\n"
         "2. Never threaten, warn, pressure, or mention legal action, credit scores, penalties or deadlines.\n"
         "3. Never write a URL or link.\n"
@@ -190,20 +204,34 @@ def compose(row: dict, action: str, link_url: str | None = None) -> Message | No
     if not api_key:
         return Message(fallback, audience, "template", True, "no GROQ_API_KEY set")
 
+    # Reasoning models (gpt-oss) think before they answer, and that thinking
+    # comes out of the same token budget while being returned in a separate
+    # field. Too small a budget and the reasoning eats the whole allowance,
+    # leaving no message at all. Give it room, and ask it to think less, since
+    # writing a two-line payment reminder does not need deep deliberation.
+    payload = {
+        "model": GROQ_MODEL,
+        "messages": _prompt(row, action, link_url),
+        "temperature": 0.4,
+        "max_tokens": 4096,
+    }
+    if "gpt-oss" in GROQ_MODEL:
+        payload["reasoning_effort"] = "low"
+
     try:
-        resp = requests.post(
-            GROQ_URL,
-            headers={"Authorization": f"Bearer {api_key}"},
-            json={
-                "model": GROQ_MODEL,
-                "messages": _prompt(row, action, link_url),
-                "temperature": 0.4,
-                "max_tokens": 200,
-            },
-            timeout=20,
-        )
+        headers = {"Authorization": f"Bearer {api_key}"}
+        resp = requests.post(GROQ_URL, headers=headers, json=payload, timeout=30)
+        if resp.status_code == 400 and "reasoning_effort" in payload:
+            # Some models reject the parameter. Retry once without it.
+            payload.pop("reasoning_effort")
+            resp = requests.post(GROQ_URL, headers=headers, json=payload, timeout=30)
         resp.raise_for_status()
-        text = resp.json()["choices"][0]["message"]["content"].strip().strip('"')
+        choice = resp.json()["choices"][0]
+        text = (choice["message"].get("content") or "").strip().strip('"')
+        if not text:
+            # Almost always means the token budget ran out during reasoning.
+            reason = f"model returned no message (finish_reason={choice.get('finish_reason')})"
+            return Message(fallback, audience, "template_after_failed_check", False, reason)
     except Exception as exc:
         return Message(fallback, audience, "template", True, f"model call failed: {exc}")
 

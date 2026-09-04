@@ -7,3 +7,6 @@ reports/*.md
 !reports/.gitkeep
 *.pkl
 reports/memory.json
+
+# Personal notes, not part of the submission
+EXPLAINER.md

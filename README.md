@@ -21,9 +21,11 @@ python -m venv .venv
 source .venv/bin/activate        # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 
-cp .env.example .env             # optional, add Razorpay test-mode keys to
-                                  # send real test payment links; without them
-                                  # the executor runs in mock mode
+cp .env.example .env             # optional. Add a Groq key for model-written
+                                  # messages and Razorpay test-mode keys for real
+                                  # payment links. Without them the pipeline runs
+                                  # on templates and mocks.
+python check_setup.py            # tells you which of those are actually live
 
 python data/generate_data.py     # writes historical_data.csv + current_batch.csv
 python agent/scorer.py           # trains the scorer, prints held-out AUC

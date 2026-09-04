@@ -95,6 +95,8 @@ def test_accepts_revoked_message_that_says_debits_stopped():
 # --- end to end, with the model call faked -----------------------------------
 
 class _FakeResponse:
+    status_code = 200
+
     def __init__(self, text):
         self._text = text
 
@@ -102,7 +104,7 @@ class _FakeResponse:
         pass
 
     def json(self):
-        return {"choices": [{"message": {"content": self._text}}]}
+        return {"choices": [{"message": {"content": self._text}, "finish_reason": "stop"}]}
 
 
 def _with_fake_model(text, fn):

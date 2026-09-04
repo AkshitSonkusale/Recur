@@ -94,6 +94,21 @@ refusing to open a second ticket for something a person is already handling.
 and fails if anything gets over-chased. It's the test I'd point at first if
 someone asked whether the limits are real.
 
+## The documented model wasn't available on my key
+
+Wired up Groq against `llama-3.3-70b-versatile` because that is what the
+supported-models page lists as a production model. Every call came back 404.
+The key was fine; the model was not reachable. Groq lists the Llama models
+under an enterprise tier while the `gpt-oss` models are the publicly priced
+ones, so a free key gets a 404 rather than a permissions error, which points
+you at the wrong thing.
+
+Found it by calling `GET /openai/v1/models` with the key, which returns
+exactly what that key can use rather than what the docs say exists. Default is
+now `openai/gpt-oss-120b` and `.env.example` says how to check. Worth
+remembering generally: ask the API what it will give you rather than trusting
+the model list in the documentation.
+
 ## Naming collision with another entry
 
 An early version of the component naming overlapped with vocabulary another
