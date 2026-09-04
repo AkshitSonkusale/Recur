@@ -182,7 +182,10 @@ def _prompt(row: dict, action: str, link_url: str | None) -> list:
         f"1. The only money figure you may write is {amount}. Never any other number with a rupee sign.\n"
         "2. Never threaten, warn, pressure, or mention legal action, credit scores, penalties or deadlines.\n"
         "3. Never write a URL or link.\n"
-        f"4. Stay under {MAX_MESSAGE_CHARS} characters.\n"
+        # Ask for well under the hard limit. Telling the model the exact limit
+        # makes it write right up against it, so ordinary variance tips over
+        # and the message gets thrown away for being four characters long.
+        f"4. Keep it short, under {MAX_MESSAGE_CHARS - 120} characters. Two sentences is plenty.\n"
         "5. Be polite and factual. No emoji.\n"
         "Reply with the message text only, nothing else."
     )

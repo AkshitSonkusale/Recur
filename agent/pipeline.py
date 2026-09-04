@@ -21,8 +21,18 @@ def run(batch_csv: str, seed: int = 123, advance_hours: float = 24.0) -> dict:
 
     state = memory.start_run(memory.load(), advance_hours)
 
+    rows = scored.to_dict("records")
+    total = len(rows)
+    live = bool(os.environ.get("GROQ_API_KEY", "").strip() or
+                os.environ.get("RAZORPAY_KEY_ID", "").strip())
+    if live:
+        print(f"Working through {total} transactions with live API calls, "
+              f"this takes a few minutes.")
+
     records = []
-    for raw_row in scored.to_dict("records"):
+    for i, raw_row in enumerate(rows, 1):
+        if live and (i % 5 == 0 or i == total):
+            print(f"  {i}/{total}", end="\r", flush=True)
         row = memory.apply(state, raw_row)
         decision = decision_engine.decide(row)
         execution = executor.execute(row, decision.action)
@@ -37,6 +47,8 @@ def run(batch_csv: str, seed: int = 123, advance_hours: float = 24.0) -> dict:
                       message.text if message else None)
         records.append(logbook.build_record(row, decision, execution, recovered, message))
 
+    if live:
+        print(" " * 40, end="\r")   # clear the progress line
     memory_path = memory.save(state)
     log_path = logbook.write_log(records)
     report = summarize(records)
