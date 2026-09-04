@@ -14,7 +14,8 @@ and the numbers from the current run.
 
 Built for the Razorpay AI Buildathon 2026, Track 03.
 
-## How it works
+
+## The flow 
 
 ```mermaid
 flowchart TD
