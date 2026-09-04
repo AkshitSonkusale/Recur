@@ -29,7 +29,7 @@ NOTIFICATION_LEAD_HOURS = 24
 PEAK_HOURS = set(range(6, 11))     # 06:00-10:59 local time: avoid scheduling retries here
 NON_PEAK_WINDOWS = ["11:00-16:00", "23:00-06:00"]
 
-# --- Recovery actions the Doer can take ---------------------------------------
+# --- Recovery actions the executor can take -----------------------------------
 ACTION_SCHEDULE_RETRY = "schedule_retry"                 # mandate: retry within NPCI cap
 ACTION_SEND_PAYMENT_LINK = "send_payment_link"            # real Razorpay test-mode API call
 ACTION_ESCALATE_MANUAL_PAYMENT = "escalate_manual_payment" # NPCI cap exhausted -> notify customer
@@ -69,8 +69,7 @@ DEFAULT_ACTION_FOR_CASE = {
 }
 RECEIVABLE_HUMAN_ESCALATION_THRESHOLD_INR = 100_000
 
-# Anti-harassment / contact-fatigue cap for non-mandate channels (checkout
-# nudges, receivable chasers). Not an NPCI rule specifically, but the same
-# "compliant escalation, stopping rules" principle applied to contact
-# frequency generally.
+# How many times a customer can be contacted about a checkout or invoice
+# before the agent leaves them alone. My own policy choice, not an NPCI
+# requirement, unlike the mandate limits above.
 MAX_CONTACT_ATTEMPTS_NON_MANDATE = 3

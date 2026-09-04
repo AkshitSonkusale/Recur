@@ -1,15 +1,15 @@
-"""Doer: executes the chosen recovery action.
+"""Executes the chosen recovery action.
 
 `send_payment_link` and `escalate_manual_payment` call Razorpay's real
 TEST-MODE Payment Links API (https://api.razorpay.com/v1/payment_links/) when
 RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET are set in the environment. If they are
-not set (or the call fails), execution degrades gracefully to a clearly
-logged MOCK result — the pipeline never crashes for lack of credentials.
+not set, or the call fails, it falls back to a mock result labelled as
+such, so a missing key doesn't stop the batch.
 
 `schedule_retry` and `escalate_human` don't have a public merchant-triggered
-Razorpay API in the same sense (real UPI Autopay retries are bank/NPCI
-orchestrated on schedule; internal escalation would hit a support system) —
-these are simulated and explicitly logged as such.
+Razorpay API. Real Autopay retries are scheduled by the bank and NPCI, and
+internal escalation would go to a support system, so both are simulated and
+logged as simulated.
 """
 from __future__ import annotations
 
@@ -30,6 +30,7 @@ class ExecutionResult:
     status: str          # "executed_live" | "executed_mock" | "simulated" | "skipped"
     detail: str
     external_ref: str | None = None
+    link_url: str | None = None   # set when a payment link was created
 
 
 def _razorpay_credentials():
@@ -58,9 +59,10 @@ def _create_payment_link(row: dict, purpose: str) -> ExecutionResult:
     if not key_id or not key_secret:
         return ExecutionResult(
             "executed_mock",
-            f"MOCK (no RAZORPAY_KEY_ID/SECRET set): would create a test-mode payment link "
+            f"Mock (no RAZORPAY_KEY_ID/SECRET set): would create a test-mode payment link "
             f"for ₹{row['amount']:.0f} and notify {row['customer_contact']}.",
             external_ref=f"mock_plink_{row['txn_id']}",
+            link_url=f"[test-mode link for {row['txn_id']}]",
         )
 
     try:
@@ -71,14 +73,16 @@ def _create_payment_link(row: dict, purpose: str) -> ExecutionResult:
         data = resp.json()
         return ExecutionResult(
             "executed_live",
-            f"Live Razorpay test-mode payment link created: {data.get('short_url')}",
+            f"Razorpay test-mode payment link created: {data.get('short_url')}",
             external_ref=data.get("id"),
+            link_url=data.get("short_url"),
         )
-    except Exception as exc:  # network error, bad creds, etc. — never crash the batch
+    except Exception as exc:  # network, credentials, bad response: batch continues
         return ExecutionResult(
             "executed_mock",
-            f"Razorpay API call failed ({exc}); fell back to MOCK so the batch still completes.",
+            f"Razorpay call failed ({exc}), fell back to a mock so the batch completes.",
             external_ref=f"mock_plink_{row['txn_id']}",
+            link_url=f"[test-mode link for {row['txn_id']}]",
         )
 
 

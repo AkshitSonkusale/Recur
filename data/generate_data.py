@@ -2,18 +2,16 @@
 
 Produces two files:
   data/historical_data.csv  - ~600 RESOLVED cases with a `recovered` outcome
-                               label. Used ONLY to train the Detective's ML
+                               label. Used ONLY to train the
                                scorer (agent/scorer.py). Never shown to the
                                decision engine directly.
-  data/current_batch.csv    - ~72 UNRESOLVED, at-risk cases (no label). This
-                               is "the batch" the agent runs on end-to-end;
-                               its report is graded on the whole batch, not a
-                               cherry-picked subset.
+  data/current_batch.csv    - ~76 unresolved cases with no outcome label.
+                               This is what the agent runs on.
 
-current_batch.csv deliberately includes several edge cases (exhausted retry
-caps, revoked mandates, risk-flagged transactions, notification-window
-violations, negative-EV small overdue invoices) so the guardrail / stopping
-logic actually gets exercised, not just the happy path.
+current_batch.csv includes edge cases on purpose (mandates at the retry
+limit, revoked mandates, risk-flagged rows, rows still inside the
+notification window, small invoices already chased several times) so the
+rule checks get exercised rather than only the straightforward path.
 """
 from __future__ import annotations
 

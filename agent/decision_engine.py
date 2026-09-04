@@ -1,11 +1,10 @@
-"""Decision-Maker: turns a diagnosed probability into a bounded action.
+"""Turns a scored probability into a bounded action.
 
 For every candidate action still allowed after guardrails.check(), this
-computes expected_value = probability * amount, subtracts a labeled
-operating cost, and picks the highest net-EV action — UNLESS a guardrail
-forces a specific action regardless of EV (compliance always wins over
-economics). Every candidate considered, not just the winner, is kept for the
-audit trail so "why this action, and not that one" is answerable.
+computes expected_value = probability * amount, subtracts an operating
+cost, and takes the highest net figure. If guardrails.check() fixed an
+action, that one is used whatever the arithmetic says. All candidates are
+stored, so rejected alternatives can be inspected later.
 """
 from __future__ import annotations
 
@@ -69,14 +68,15 @@ def decide(row: dict) -> DecisionResult:
     ) or "none"
 
     reasoning = (
-        f"recovery_probability={row['recovery_probability']:.2f} for a ₹{row['amount']:.0f} "
-        f"{row['case_type']} case (reason: {row['failure_code']}). "
-        f"Guardrails: {' '.join(gr.reasons)} "
-        f"Chosen action '{chosen['action']}' "
-        + (f"(compliance-forced, overriding economics)."
+        f"₹{row['amount']:.0f} {row['case_type']} case (reason: {row['failure_code']}). "
+        f"Model scored {row['recovery_probability']:.2f} under the default action for this "
+        f"case type; rescaled to {chosen['probability']:.2f} for '{chosen['action']}'. "
+        f"Rules: {' '.join(gr.reasons)} "
+        + (f"Action '{chosen['action']}' was set by the rule check, so the arithmetic "
+           f"(net ₹{chosen['net_ev']:.0f}) did not decide it."
            if basis == "compliance_override"
-           else f"because it has the best net expected value "
-                f"(₹{chosen['net_ev']:.0f}) among candidates [{others}].")
+           else f"Chose '{chosen['action']}' on best net value "
+                f"(₹{chosen['net_ev']:.0f}) against [{others}].")
     )
 
     return DecisionResult(

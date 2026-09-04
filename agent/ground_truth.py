@@ -1,11 +1,9 @@
 """Hidden ground-truth simulator.
 
-This is intentionally NOT seen by the ML scorer (agent/scorer.py) — it exists
-only so this offline demo can (a) generate a labeled historical dataset to
-train on, and (b) simulate a realistic real-world outcome after the agent
-acts on the current batch, so the batch report's "$ recovered" number is
-computed rather than asserted. In a live deployment this whole module is
-replaced by actual observed payment outcomes.
+The scorer never imports this. It exists so the demo can label a historical
+training set and simulate whether a customer paid after the agent acted, which
+is what makes the collected figure a computed number. On real data this module
+goes away and actual payment outcomes take its place.
 """
 from __future__ import annotations
 

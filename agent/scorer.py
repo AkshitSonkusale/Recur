@@ -1,10 +1,9 @@
-"""Detective: the ML recovery-probability scorer.
+"""Recovery-probability scorer.
 
-Trains a real classifier on historical_data.csv (labeled, resolved cases) and
-applies it to current_batch.csv (unresolved, at-risk cases). This is what
-turns "recovery probability" from a hardcoded lookup table into an actual
-learned, evaluable number — the model's own held-out AUC/Brier score is saved
-alongside it so the confidence claim is itself checkable, not asserted.
+Trains a classifier on historical_data.csv (resolved cases, with outcome
+labels) and applies it to current_batch.csv (unresolved cases). Held-out
+AUC and Brier score are saved to reports/training_metrics.json so the
+probabilities can be checked against the model's measured accuracy.
 """
 from __future__ import annotations
 
@@ -65,7 +64,7 @@ def train(historical_csv: str, save: bool = True):
 def load_model():
     if not os.path.exists(MODEL_PATH):
         raise FileNotFoundError(
-            "No trained model found at agent/model.pkl — run `python agent/scorer.py` "
+            "No trained model found at agent/model.pkl. Run `python agent/scorer.py` "
             "(or agent.scorer.train(...)) first."
         )
     return joblib.load(MODEL_PATH)
@@ -87,6 +86,6 @@ def score(df: pd.DataFrame, model=None) -> pd.DataFrame:
 if __name__ == "__main__":
     hist_path = os.path.join(_HERE, "..", "data", "historical_data.csv")
     _, metrics = train(hist_path)
-    print("Trained Detective model on", metrics["n_train"] + metrics["n_test"], "historical cases")
+    print("Trained scorer on", metrics["n_train"] + metrics["n_test"], "historical cases")
     print(f"Held-out ROC-AUC: {metrics['roc_auc']:.3f}  |  Brier score: {metrics['brier_score']:.3f}")
     print("Top features:", list(metrics["feature_importance"].items())[:5])

@@ -1,4 +1,4 @@
-"""Shared feature engineering for the Detective's ML scorer.
+"""Shared feature engineering for the scorer.
 
 Used identically at training time (on historical_data.csv, which has a
 `recovered` outcome label) and at inference time (on current_batch.csv, which

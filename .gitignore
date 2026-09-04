@@ -6,3 +6,4 @@ reports/*.json
 reports/*.md
 !reports/.gitkeep
 *.pkl
+reports/memory.json

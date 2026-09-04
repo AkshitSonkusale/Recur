@@ -1,47 +1,74 @@
 # Recur
 
-Built for Razorpay AI Buildathon 2026 — Track 03, AI Revenue Recovery.
+An agent that chases payments a merchant is owed and hasn't received: failed
+UPI Autopay mandates, abandoned checkouts, and overdue B2B invoices.
 
-Detects revenue at risk across three failure shapes (failed UPI Autopay
-mandates, abandoned checkouts, overdue B2B receivables), diagnoses each with
-a trained ML model, decides the right bounded intervention under real
-NPCI-derived compliance rules, executes it (including real calls to
-Razorpay's test-mode Payment Links API), and logs a full audit trail. See
-[`ARCHITECTURE.md`](./ARCHITECTURE.md) for the full design writeup and honest
-results.
+For each transaction it scores how likely the money is to come back, checks
+what it's permitted to do under UPI Autopay rules, works out whether the
+chase is worth its cost, runs the action (real Razorpay test-mode API calls
+where one exists), writes the customer message with an LLM that is checked
+before anything is sent, and records what it did. It remembers its own actions
+between runs, so the retry and contact limits are enforced against attempts it
+actually made rather than a number it was handed. `ARCHITECTURE.md` has the design
+and the numbers from the current run.
 
-## Quickstart
+Built for the Razorpay AI Buildathon 2026, Track 03.
+
+## Running it
 
 ```bash
-python -m venv .venv && source .venv/bin/activate   # optional but recommended
+python -m venv .venv
+source .venv/bin/activate        # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 
-cp .env.example .env   # optional: add Razorpay TEST-MODE keys to send real
-                        # test-mode payment links; leave blank to run in mock mode
+cp .env.example .env             # optional, add Razorpay test-mode keys to
+                                  # send real test payment links; without them
+                                  # the executor runs in mock mode
 
-python data/generate_data.py   # generates data/historical_data.csv and data/current_batch.csv
-python agent/scorer.py          # trains the Detective model, prints held-out AUC/Brier
-python run_batch.py             # runs the full agent over the batch, writes reports/
-
-python tests/test_guardrails.py
-python tests/test_decision_engine.py
+python data/generate_data.py     # writes historical_data.csv + current_batch.csv
+python agent/scorer.py           # trains the scorer, prints held-out AUC
+python run_batch.py --reset      # first run, clean memory
+python run_batch.py              # run again, agent remembers run 1
+python make_dashboard.py         # renders reports/dashboard.html
 ```
 
-Output: `reports/report.md` (human-readable batch summary), `reports/report.json`
-(full detail), `reports/audit_trail.jsonl` (per-transaction audit trail),
-`reports/training_metrics.json` (model evaluation).
+Tests:
 
-## What "the bar" asks for, and where it's met
+```bash
+python tests/test_guardrails.py
+python tests/test_decision_engine.py
+python tests/test_messenger.py
+python tests/test_memory.py
+```
 
-| Requirement | Where |
+Run `run_batch.py` a few times in a row and watch it go quiet: paid
+transactions stop being chased, retry and contact limits fill up, and by the
+fourth run most of the batch gets no action at all.
+
+## Output
+
+| File | Contents |
 |---|---|
-| Measured money recovered across a batch | `run_batch.py` → `reports/report.md`, run over the full 76-transaction batch, no cherry-picking |
-| Compliant escalation | `agent/guardrails.py` — real NPCI/UPI Autopay retry-cap, notification-lead-time, and revocation rules |
-| Stopping rules | Same file — hard stops on risk-flagged transactions, exhausted retry caps, revoked mandates, negative expected value, contact fatigue |
-| Audit trail | `agent/audit.py` → `reports/audit_trail.jsonl`, one full decision trace per transaction |
+| `reports/report.md` | Batch summary, readable |
+| `reports/report.json` | Same, plus every per-transaction record |
+| `reports/decision_log.jsonl` | One line per transaction: score, rules fired, decision, result |
+| `reports/dashboard.html` | Browser view of the above, filterable |
+| `reports/memory.json` | What the agent remembers between runs |
+| `reports/training_metrics.json` | Model AUC, Brier score, feature importances |
 
-## Repo layout
+## Layout
 
-See [`ARCHITECTURE.md`](./ARCHITECTURE.md) for the component breakdown
-(Detective / Decision-Maker / Doer / Audit) and the reasoning behind the
-"mandate retry sequencer" framing.
+```
+agent/scorer.py           scores recovery probability
+agent/guardrails.py       UPI Autopay rule checks and contact limits
+agent/decision_engine.py  expected value per action, picks one
+agent/executor.py         runs the action, Razorpay API or simulated
+agent/messenger.py        writes the customer message, checks it before use
+agent/memory.py           state across runs, so limits count real actions
+agent/logbook.py          per-transaction record
+agent/pipeline.py         runs the stages across the batch
+agent/ground_truth.py     simulation only, never seen by the scorer
+data/generate_data.py     synthetic training set and current batch
+run_batch.py              entry point
+make_dashboard.py         renders the HTML view from report.json
+```

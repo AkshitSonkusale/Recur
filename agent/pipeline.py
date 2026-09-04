@@ -1,6 +1,5 @@
-"""Orchestrates the full loop: Detective (score) -> Decision-Maker (decide,
-guardrail-checked) -> Doer (execute) -> Audit, run over the ENTIRE batch —
-no cherry-picking a favorable subset."""
+"""Runs score -> rule check -> decide -> execute -> write message -> log
+across every row in the batch, carrying state forward between runs."""
 from __future__ import annotations
 
 import os
@@ -10,29 +9,40 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from agent import audit, decision_engine, executor, schema, scorer  # noqa: E402
+from agent import (decision_engine, executor, logbook, memory,  # noqa: E402
+                    messenger, schema, scorer)
 from agent.ground_truth import simulate_outcome  # noqa: E402
 
 
-def run(batch_csv: str, seed: int = 123) -> dict:
+def run(batch_csv: str, seed: int = 123, advance_hours: float = 24.0) -> dict:
     df = pd.read_csv(batch_csv)
     scored = scorer.score(df)
     rng = np.random.default_rng(seed)
 
+    state = memory.start_run(memory.load(), advance_hours)
+
     records = []
-    for row in scored.to_dict("records"):
+    for raw_row in scored.to_dict("records"):
+        row = memory.apply(state, raw_row)
         decision = decision_engine.decide(row)
         execution = executor.execute(row, decision.action)
+
+        message = messenger.compose(row, decision.action, execution.link_url)
 
         recovered = False
         if decision.action != schema.ACTION_DO_NOTHING:
             recovered = simulate_outcome(row, decision.action, rng)
 
-        records.append(audit.build_audit_record(row, decision, execution, recovered))
+        memory.record(state, row, decision.action, recovered,
+                      message.text if message else None)
+        records.append(logbook.build_record(row, decision, execution, recovered, message))
 
-    audit_path = audit.write_audit_log(records)
+    memory_path = memory.save(state)
+    log_path = logbook.write_log(records)
     report = summarize(records)
-    return {"records": records, "report": report, "audit_log_path": audit_path}
+    report["memory"] = memory.summary(state)
+    return {"records": records, "report": report,
+            "decision_log_path": log_path, "memory_path": memory_path}
 
 
 def summarize(records: list) -> dict:
@@ -62,6 +72,10 @@ def summarize(records: list) -> dict:
 
     return {
         "batch_size": n,
+        "skipped_already_paid": sum(
+            1 for r in records
+            if any("Already collected" in s["detail"] for s in r["steps"] if s["step"] == "rules_checked")
+        ),
         "total_at_risk_inr": round(total_at_risk, 2),
         "total_recovered_inr": round(total_recovered, 2),
         "recovery_rate": round(total_recovered / total_at_risk, 4) if total_at_risk else 0.0,
