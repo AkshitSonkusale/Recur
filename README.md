@@ -14,6 +14,21 @@ and the numbers from the current run.
 
 Built for the Razorpay AI Buildathon 2026, Track 03.
 
+## What it looks like
+
+![Batch report](docs/dashboard.png)
+
+It remembers what it already did, so repeat runs chase fewer people. Paid
+transactions drop out, retry and contact limits fill up, and it goes quiet.
+
+![Across runs](docs/across_runs.png)
+
+Customer messages are written by an LLM and checked before anything is sent.
+Amount, recipient, channel and whether to make contact are all decided before
+the model is called.
+
+![Model-written message](docs/hinglish_message.png)
+
 ## Running it
 
 ```bash
