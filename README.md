@@ -17,6 +17,44 @@ Built for the Razorpay AI Buildathon 2026, Track 03.
 rules each check is derived from, and the numbers from the current run.
 **[DIFFICULTIES.md](DIFFICULTIES.md)** is what went wrong while building it.
 
+## The flow 
+
+```mermaid
+flowchart TD
+    H[(historical_data.csv<br/>600 resolved cases)] -.->|trains| S
+    B[(current_batch.csv<br/>76 at-risk cases)] --> S
+
+    S[1 - Score<br/>GradientBoosting classifier<br/>returns a recovery probability] --> G
+    MEM[(memory.json<br/>attempts made, contacts sent<br/>messages, what got paid)]
+    MEM -->|its own past actions| G
+
+    G[2 - Check the rules<br/>NPCI retry cap, 24h notice<br/>revocation, contact limits] --> D
+    G -->|rule fixes the action| E
+
+    D[3 - Price the options<br/>probability x amount - cost<br/>best net value wins] --> E
+    E[4 - Act<br/>Razorpay test-mode payment link<br/>retry, escalate, or nothing] --> W
+    W[5 - Write the message<br/>Groq writes Hinglish<br/>passes checks or falls back] --> L
+    W --> MEM
+
+    L[(decision_log.jsonl<br/>report.json, dashboard.html)]
+```
+
+
+## What it looks like
+
+![Batch report](docs/dashboard.png)
+
+It remembers what it already did, so repeat runs chase fewer people. Paid
+transactions drop out, retry and contact limits fill up, and it goes quiet.
+
+![Across runs](docs/across_runs.png)
+
+Customer messages are written by an LLM and checked before anything is sent.
+Amount, recipient, channel and whether to make contact are all decided before
+the model is called.
+
+![Model-written message](docs/hinglish_message.png)
+
 ## Running it
 
 ```bash
