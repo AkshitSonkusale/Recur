@@ -10,3 +10,6 @@ reports/memory.json
 
 # Personal notes, not part of the submission
 EXPLAINER.md
+
+# Downloaded on demand by data/real_world_check.py
+data/external/

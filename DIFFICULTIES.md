@@ -109,6 +109,35 @@ now `openai/gpt-oss-120b` and `.env.example` says how to check. Worth
 remembering generally: ask the API what it will give you rather than trusting
 the model list in the documentation.
 
+## Checking the scorer against data I did not write
+
+The batch is generated, because there is no public dataset of failed UPI
+Autopay mandates. That is honest but it leaves an obvious hole: the model is
+scored against outcomes produced by rules I wrote, so of course it looks fine.
+Held-out AUC on my own generator proves the model learned my generator.
+
+So I pointed the same feature builder and the same classifier at the UCI
+"Default of Credit Card Clients" dataset, 30,000 real customer repayment
+histories from Taiwan. Different country, different instrument, outcomes
+recorded by a bank. The mapping is in `data/real_world_check.py`: a customer
+carrying an uncleared balance is a failed collection cycle, months of delay
+map onto attempt depth, and whether they defaulted the following month,
+inverted, is the label.
+
+Five of the scorer's features have no equivalent there, so they sit at zero
+and only the balance-and-delinquency backbone gets tested. That subset holds
+up: 0.781 ROC-AUC on a 20% holdout, against 0.692 on my own generated data.
+The signal getting stronger on real data rather than weaker is the answer I
+wanted, because the failure mode I was worried about was the opposite.
+
+Two things I made sure of. It writes to `reports/real_world_metrics.json` and
+trains in memory, so it cannot quietly change the numbers the batch and the
+dashboard report. And the dataset ships with SEX, EDUCATION, MARRIAGE and AGE
+columns which are not used, with a test that fails if any of them reach the
+feature frame. A collections model that keys off a customer's sex or marital
+status is a discrimination problem with a ROC curve on top, and leaving that
+to a code comment felt like the wrong call.
+
 ## Naming collision with another entry
 
 An early version of the component naming overlapped with vocabulary another
